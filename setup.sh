@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
-PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.0}"
+PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.1}"
 MAGO_VERSION="${MAGO_VERSION:-1.53.0}"
 ECS_VERSION="${ECS_VERSION:-13.3.3}"
 PHP_CS_FIXER_VERSION="${PHP_CS_FIXER_VERSION:-3.95.27}"
@@ -17,9 +17,11 @@ mkdir -p "$TOOLS" "$ROOT/projects"
 echo ">>> Installing Mago $MAGO_VERSION"
 curl -sSL https://carthage.software/mago.sh | bash -s -- --install-dir="$TOOLS" --version="$MAGO_VERSION"
 
-echo ">>> Downloading PHPStan $PHPSTAN_VERSION"
-curl -sSL -o "$TOOLS/phpstan.phar" \
-    "https://github.com/phpstan/phpstan/releases/download/$PHPSTAN_VERSION/phpstan.phar"
+echo ">>> Installing PHPStan $PHPSTAN_VERSION (with Composer, so the Turbo extension next to the phar is used)"
+mkdir -p "$TOOLS/phpstan"
+(cd "$TOOLS/phpstan" && COMPOSER_MEMORY_LIMIT=-1 \
+    "$PHP_BIN" "$COMPOSER_BIN" require "phpstan/phpstan:$PHPSTAN_VERSION" \
+    --no-interaction --no-progress)
 
 echo ">>> Installing ECS $ECS_VERSION (ships the ecs-go binary for --blink)"
 mkdir -p "$TOOLS/ecs"

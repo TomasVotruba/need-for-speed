@@ -29,7 +29,7 @@ run_once() {
     echo "${elapsed:-0}"
 }
 
-phpstan_cmd() { "$PHP_BIN" "$TOOLS/phpstan.phar" analyse -c phpstan.neon --no-progress --error-format=raw; }
+phpstan_cmd() { "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" analyse -c phpstan.neon --no-progress --error-format=raw; }
 mago_cmd() { "$TOOLS/mago" analyze; }
 ecs_cmd() { "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" check --no-progress-bar "$@"; }
 csfixer_cmd() { "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" check "$@"; }
@@ -44,7 +44,7 @@ bench() {
         if [ "$mode" = cold ] && [ "$tool" = phpstan ]; then rm -rf .phpstan-cache; fi
         if [ "$mode" = cold ] && [ "$tool" = php-cs-fixer ]; then rm -f .php-cs-fixer.cache; fi
         if [ "$tool" = phpstan ]; then
-            t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/phpstan.phar" analyse -c phpstan.neon --no-progress --error-format=raw)
+            t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" analyse -c phpstan.neon --no-progress --error-format=raw)
         elif [ "$tool" = mago ]; then
             t=$(run_once "$TMP/rss" "$TOOLS/mago" analyze)
         elif [ "$tool" = ecs ]; then
@@ -69,7 +69,7 @@ bench() {
     awk -v s="$med" -v m="$rss_max" 'BEGIN{printf "%.2f %.0f\n", s, m/1024}'
 }
 
-PS_VER=$("$PHP_BIN" "$TOOLS/phpstan.phar" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+PS_VER=$("$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 MG_VER=$("$TOOLS/mago" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 ES_VER=$("$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
 CF_VER=$("$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
