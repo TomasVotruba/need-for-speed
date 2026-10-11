@@ -7,16 +7,17 @@ TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
 PROJECTS=(laravel symfony)
-# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink + php-cs-fixer) | all.
+# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer | all.
 # ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
 # for the parallel CI jobs that a merge step stitches back together.
 BENCH_GROUP="${BENCH_GROUP:-all}"
 ROWS_ONLY="${ROWS_ONLY:-0}"
 case "$BENCH_GROUP" in
-    phpstan) GROUP_TOOLS=(phpstan) ;;
-    mago)    GROUP_TOOLS=(mago) ;;
-    ecs)     GROUP_TOOLS=(ecs ecs-blink php-cs-fixer) ;;
-    all)     GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer) ;;
+    phpstan)      GROUP_TOOLS=(phpstan) ;;
+    mago)         GROUP_TOOLS=(mago) ;;
+    ecs)          GROUP_TOOLS=(ecs ecs-blink) ;;
+    php-cs-fixer) GROUP_TOOLS=(php-cs-fixer) ;;
+    all)          GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer) ;;
     *) echo "unknown BENCH_GROUP: $BENCH_GROUP" >&2; exit 1 ;;
 esac
 # PHPStan phar needs PHP 8.x; prefer php8.4 when the default php is older.
