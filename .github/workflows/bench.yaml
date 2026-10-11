@@ -23,8 +23,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up PHP 7.4 (PHPStan job, for the Laravel 8.x rows)
-        if: matrix.group == 'phpstan'
+      - name: Set up PHP 7.4 (for the Laravel 8.x project)
         uses: shivammathur/setup-php@v2
         with:
           php-version: '7.4'

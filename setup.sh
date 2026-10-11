@@ -58,7 +58,7 @@ if want php-cs-fixer; then
 fi
 
 clone_project() {
-    local name="$1" repo="$2" branch="${3:-}"
+    local name="$1" repo="$2" branch="${3:-}" cphp="${4:-$PHP_BIN}"
     if [ ! -d "$ROOT/projects/$name/.git" ]; then
         echo ">>> Cloning $name"
         if [ -n "$branch" ]; then
@@ -67,9 +67,13 @@ clone_project() {
             git clone --depth 1 "$repo" "$ROOT/projects/$name"
         fi
     fi
+    # Installing under php8.4 ignores platform reqs; a dedicated older php (laravel74)
+    # installs without it, so Composer resolves dependency versions that php can parse.
+    local platform="--ignore-platform-reqs"
+    [ "$cphp" != "$PHP_BIN" ] && platform=""
     echo ">>> composer install: $name"
     (cd "$ROOT/projects/$name" && COMPOSER_MEMORY_LIMIT=-1 \
-        "$PHP_BIN" "$COMPOSER_BIN" install --no-interaction --no-progress --no-scripts --ignore-platform-reqs)
+        "$cphp" "$COMPOSER_BIN" install --no-interaction --no-progress --no-scripts $platform)
     cp "$ROOT/configs/$name/phpstan.neon" "$ROOT/projects/$name/phpstan.neon"
     cp "$ROOT/configs/$name/mago.toml" "$ROOT/projects/$name/mago.toml"
     cp "$ROOT/configs/$name/ecs.php" "$ROOT/projects/$name/ecs.php"
@@ -78,6 +82,6 @@ clone_project() {
 
 clone_project laravel https://github.com/laravel/framework.git
 clone_project symfony https://github.com/symfony/symfony.git
-clone_project laravel74 https://github.com/laravel/framework.git 8.x
+clone_project laravel74 https://github.com/laravel/framework.git 8.x "${PHP74_BIN:-$PHP_BIN}"
 
 echo ">>> Done. Now run: ./bench.sh"
