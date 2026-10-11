@@ -22,6 +22,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y time
 
       - name: Install tools and projects
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./setup.sh
 
       - name: Run benchmark
