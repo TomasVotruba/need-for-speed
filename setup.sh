@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
 PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.1}"
 MAGO_VERSION="${MAGO_VERSION:-1.55.0}"
-ECS_VERSION="${ECS_VERSION:-13.3.3}"
+ECS_VERSION="${ECS_VERSION:-13.3.4}"
 PHP_CS_FIXER_VERSION="${PHP_CS_FIXER_VERSION:-3.95.27}"
 # Frameworks and PHPStan need PHP 8.x; prefer php8.4 when the default php is older.
 PHP_BIN="${PHP_BIN:-$(command -v php8.4 || command -v php)}"
