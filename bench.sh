@@ -103,7 +103,7 @@ tool_version() {
         mago) "$TOOLS/mago" --version ;;
         ecs|ecs-blink) "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version ;;
         php-cs-fixer) "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version ;;
-    esac | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
+    esac | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1
 }
 
 if [ "$ROWS_ONLY" = 1 ]; then
