@@ -6,7 +6,7 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
-PROJECTS=(laravel symfony)
+PROJECTS=(laravel symfony laravel74)
 # BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer | all.
 # ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
 # for the parallel CI jobs that a merge step stitches back together.
@@ -22,6 +22,8 @@ case "$BENCH_GROUP" in
 esac
 # PHPStan phar needs PHP 8.x; prefer php8.4 when the default php is older.
 PHP_BIN="${PHP_BIN:-$(command -v php8.4 || command -v php)}"
+# The laravel74 (Laravel 8.x) rows run PHPStan under php7.4; the other checkers stay on php8.4.
+PHP74_BIN="${PHP74_BIN:-$(command -v php7.4 || true)}"
 
 mkdir -p "$RESULTS"
 TIME_BIN=/usr/bin/time
@@ -57,7 +59,7 @@ bench() {
         if [ "$mode" = cold ] && [ "$tool" = phpstan ]; then rm -rf .phpstan-cache; fi
         if [ "$mode" = cold ] && [ "$tool" = php-cs-fixer ]; then rm -f .php-cs-fixer.cache; fi
         if [ "$tool" = phpstan ]; then
-            t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" analyse -c phpstan.neon --no-progress --error-format=raw)
+            t=$(run_once "$TMP/rss" "$PS_PHP_BIN" "$PS_VENDOR" analyse -c phpstan.neon --no-progress --error-format=raw)
         elif [ "$tool" = mago ]; then
             t=$(run_once "$TMP/rss" "$TOOLS/mago" analyze)
         elif [ "$tool" = ecs ]; then
@@ -97,9 +99,21 @@ tool_rank() {
         phpstan) echo 1 ;; mago) echo 2 ;; ecs) echo 3 ;; ecs-blink) echo 4 ;; php-cs-fixer) echo 5 ;;
     esac
 }
+# project_label prints "Laravel 12.33" / "Symfony 7.4" from the framework's own VERSION constant
+project_label() {
+    local ver
+    case "$1" in
+        laravel|laravel74)
+            ver=$(grep -oE "VERSION = '[0-9]+\.[0-9]+" src/Illuminate/Foundation/Application.php | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+            echo "Laravel $ver" ;;
+        symfony)
+            ver=$(grep -oE "VERSION = '[0-9]+\.[0-9]+" src/Symfony/Component/HttpKernel/Kernel.php | grep -oE '[0-9]+\.[0-9]+' | head -n1)
+            echo "Symfony $ver" ;;
+    esac
+}
 tool_version() {
     case "$1" in
-        phpstan) "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" --version ;;
+        phpstan) "$PS_PHP_BIN" "$PS_VENDOR" --version ;;
         mago) "$TOOLS/mago" --version ;;
         ecs|ecs-blink) "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version ;;
         php-cs-fixer) "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version ;;
@@ -126,13 +140,24 @@ fi
 for proj in "${PROJECTS[@]}"; do
     cd "$ROOT/projects/$proj"
     files=$(find src -name '*.php' | wc -l | tr -d ' ')
-    prank=$([ "$proj" = laravel ] && echo 1 || echo 2)
+    label=$(project_label "$proj")
+    case "$proj" in
+        laravel)   prank=1 ;;
+        symfony)   prank=2 ;;
+        laravel74) prank=3 ;;
+    esac
+    # laravel74 runs PHPStan under php7.4 from its own install; the rest use php8.4
+    if [ "$proj" = laravel74 ]; then
+        PS_PHP_BIN="$PHP74_BIN"; PS_VENDOR="$TOOLS/phpstan74/vendor/bin/phpstan"
+    else
+        PS_PHP_BIN="$PHP_BIN"; PS_VENDOR="$TOOLS/phpstan/vendor/bin/phpstan"
+    fi
     for tool in "${GROUP_TOOLS[@]}"; do
         echo ">>> $proj: $(tool_display "$tool")"
         read -r cold mem_c < <(bench "$tool" cold)
         read -r hot mem_h < <(bench "$tool" hot)
         mem=$(( mem_c > mem_h ? mem_c : mem_h ))
-        row="| $proj | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot | $mem |"
+        row="| $label | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot | $mem |"
         if [ "$ROWS_ONLY" = 1 ]; then
             # prefix a <project-rank><tool-rank> sort key so the merge step can reorder fragments
             printf '%s%s\t%s\n' "$prank" "$(tool_rank "$tool")" "$row" >> "$OUT"
