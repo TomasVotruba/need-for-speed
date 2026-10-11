@@ -76,10 +76,10 @@ jobs:
             echo
             echo "- Env: GitHub Actions \`ubuntu-latest\`, PHP 8.4"
             echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
-            echo "- All pinned to 24 threads/processes. Median of 3 runs. Time in seconds, peak memory in MB."
+            echo "- All pinned to 24 threads/processes. Median of 3 runs. Time in seconds."
             echo
-            echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) | Peak mem (MB) |"
-            echo "|---------|------------:|------|---------|---------:|--------:|--------------:|"
+            echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) |"
+            echo "|---------|------------:|------|---------|---------:|--------:|"
             cat merged/rows-*.md | sort -n | cut -f2-
           } > results/results.md
 
