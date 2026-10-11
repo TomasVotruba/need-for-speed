@@ -15,14 +15,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fail if pinned versions are not the latest release
+      - name: Fail if pinned versions fall behind the latest 3 releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
 
-          latest() {
-            gh api "repos/$1/releases/latest" --jq '.tag_name' | sed 's/^v//'
+          # the 3 most recent releases, newest first - a little tolerance so a fresh
+          # patch does not immediately turn the badge red
+          recent() {
+            gh api "repos/$1/releases?per_page=10" --jq '.[].tag_name' | sed 's/^v//' | head -3
           }
           pinned() {
             grep -oP "^$1=\"\\\$\{$1:-\K[0-9]+\.[0-9]+\.[0-9]+" setup.sh
@@ -30,13 +32,13 @@ jobs:
 
           fail=0
           check() {
-            local name="$1" repo="$2" var="$3" have want
+            local name="$1" repo="$2" var="$3" have window
             have="$(pinned "$var")"
-            want="$(latest "$repo")"
-            if [ "$have" = "$want" ]; then
-              echo "OK   $name: pinned $have == latest $want"
+            window="$(recent "$repo")"
+            if printf '%s\n' "$window" | grep -qxF "$have"; then
+              echo "OK   $name: pinned $have within latest 3 ($(printf '%s' "$window" | paste -sd, -))"
             else
-              echo "FAIL $name: pinned $have != latest $want"
+              echo "FAIL $name: pinned $have behind latest 3 ($(printf '%s' "$window" | paste -sd, -))"
               fail=1
             fi
           }
