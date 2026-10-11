@@ -22,14 +22,14 @@ run higher than on a many-core host, but tools compare fairly against each other
 | Project | Files | Tool | Version | Cold (s) | Hot (s) |
 |---------|------:|------|---------|---------:|--------:|
 | Laravel 13.35 | 1742 | PHPStan | 2.3.1 | 25.87 | **1.07** |
-| Laravel 13.35 | 1742 | Mago | 1.55.0 | **1.51** | **1.45** |
+| Laravel 13.35 | 1742 | Mago | 1.55.0 | **1.51** |  |
 | Laravel 13.35 | 1742 | ECS | 13.3.4 | 11.26 | 10.34 |
-| Laravel 13.35 | 1742 | ECS --blink | 13.3.4 | **0.59** | **0.59** |
+| Laravel 13.35 | 1742 | ECS --blink | 13.3.4 | **0.59** |  |
 | Laravel 13.35 | 1742 | PHP-CS-Fixer | 3.95.27 | 12.88 | 11.89 |
 | Symfony 8.2 | 12247 | PHPStan | 2.3.1 | 114.63 | 3.37 |
-| Symfony 8.2 | 12247 | Mago | 1.55.0 | 5.28 | 5.25 |
+| Symfony 8.2 | 12247 | Mago | 1.55.0 | 5.28 |  |
 | Symfony 8.2 | 12247 | ECS | 13.3.4 | 110.92 | 62.99 |
-| Symfony 8.2 | 12247 | ECS --blink | 13.3.4 | 4.70 | 4.76 |
+| Symfony 8.2 | 12247 | ECS --blink | 13.3.4 | 4.70 |  |
 | Symfony 8.2 | 12247 | PHP-CS-Fixer | 3.95.27 | 125.80 | 79.08 |
 
 ### On PHP 7.4 (Laravel 8.x)
@@ -37,9 +37,9 @@ run higher than on a many-core host, but tools compare fairly against each other
 | Project | Files | Tool | Version | Cold (s) | Hot (s) |
 |---------|------:|------|---------|---------:|--------:|
 | Laravel 8.83 | 1084 | PHPStan | 2.3.1 | 27.62 | **1.01** |
-| Laravel 8.83 | 1084 | Mago | 1.55.0 | **0.39** | **0.38** |
+| Laravel 8.83 | 1084 | Mago | 1.55.0 | **0.39** |  |
 | Laravel 8.83 | 1084 | ECS | 13.3.4 | 6.38 | 5.56 |
-| Laravel 8.83 | 1084 | ECS --blink | 13.3.4 | **0.36** | **0.37** |
+| Laravel 8.83 | 1084 | ECS --blink | 13.3.4 | **0.36** |  |
 | Laravel 8.83 | 1084 | PHP-CS-Fixer | 3.95.27 | 7.52 | 6.82 |
 
 Mago is ~20x faster than PHPStan on a cold run (Symfony 114.6s -> 5.3s). PHPStan's cache - now via the

@@ -156,6 +156,10 @@ for proj in "${PROJECTS[@]}"; do
         echo ">>> $proj: $(tool_display "$tool")"
         read -r cold mem_c < <(bench "$tool" cold)
         read -r hot mem_h < <(bench "$tool" hot)
+        # cacheless tools (Mago, ECS --blink) keep no cache, so cold == hot - show one value, blank the Hot cell
+        case "$tool" in
+            mago|ecs-blink) hot="" ;;
+        esac
         row="| $label | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot |"
         if [ "$ROWS_ONLY" = 1 ]; then
             # prefix a <project-rank><tool-rank> sort key so the merge step can reorder fragments
