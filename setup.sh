@@ -67,11 +67,15 @@ clone_project() {
             git clone --depth 1 "$repo" "$ROOT/projects/$name"
         fi
     fi
-    # php8.4 projects install everything and ignore platform reqs. An older php (laravel74)
-    # installs --no-dev so Composer resolves runtime deps that php can actually parse - the
-    # 8.x dev tools pull php8-only versions. Only src/ is analyzed, so dev deps are not needed.
+    # php8.4 projects install everything and ignore platform reqs. For an older php (laravel74)
+    # the 8.x require-dev pulls php8-only tools (aws-sdk, jwt) that even block resolution, so we
+    # strip require-dev and install runtime deps only - only src/ is analyzed, dev deps unneeded.
     local flags="--ignore-platform-reqs"
-    [ "$cphp" != "$PHP_BIN" ] && flags="--no-dev"
+    if [ "$cphp" != "$PHP_BIN" ]; then
+        flags="--no-dev"
+        (cd "$ROOT/projects/$name" && "$cphp" -r \
+            '$j=json_decode(file_get_contents("composer.json"),true);unset($j["require-dev"]);file_put_contents("composer.json",json_encode($j,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES));')
+    fi
     echo ">>> composer install: $name"
     (cd "$ROOT/projects/$name" && COMPOSER_MEMORY_LIMIT=-1 \
         "$cphp" "$COMPOSER_BIN" install --no-interaction --no-progress --no-scripts $flags)
