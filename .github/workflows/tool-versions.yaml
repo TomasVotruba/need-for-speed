@@ -44,6 +44,5 @@ jobs:
           check PHPStan phpstan/phpstan PHPSTAN_VERSION
           check Mago carthage-software/mago MAGO_VERSION
           check ECS ecsphp/ecs ECS_VERSION
-          check PHP-CS-Fixer PHP-CS-Fixer/PHP-CS-Fixer PHP_CS_FIXER_VERSION
 
           exit $fail

@@ -7,6 +7,19 @@ TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
 PROJECTS=(laravel symfony)
+# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer | all.
+# ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
+# for the parallel CI jobs that a merge step stitches back together.
+BENCH_GROUP="${BENCH_GROUP:-all}"
+ROWS_ONLY="${ROWS_ONLY:-0}"
+case "$BENCH_GROUP" in
+    phpstan)      GROUP_TOOLS=(phpstan) ;;
+    mago)         GROUP_TOOLS=(mago) ;;
+    ecs)          GROUP_TOOLS=(ecs ecs-blink) ;;
+    php-cs-fixer) GROUP_TOOLS=(php-cs-fixer) ;;
+    all)          GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer) ;;
+    *) echo "unknown BENCH_GROUP: $BENCH_GROUP" >&2; exit 1 ;;
+esac
 # PHPStan phar needs PHP 8.x; prefer php8.4 when the default php is older.
 PHP_BIN="${PHP_BIN:-$(command -v php8.4 || command -v php)}"
 
@@ -69,55 +82,64 @@ bench() {
     awk -v s="$med" -v m="$rss_max" 'BEGIN{printf "%.2f %.0f\n", s, m/1024}'
 }
 
-PS_VER=$("$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-MG_VER=$("$TOOLS/mago" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-ES_VER=$("$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
-CF_VER=$("$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+# tool_display / tool_rank / tool_version map a tool key to its table label, sort order and version
+tool_display() {
+    case "$1" in
+        phpstan) echo "PHPStan" ;;
+        mago) echo "Mago" ;;
+        ecs) echo "ECS" ;;
+        ecs-blink) echo "ECS --blink" ;;
+        php-cs-fixer) echo "PHP-CS-Fixer" ;;
+    esac
+}
+tool_rank() {
+    case "$1" in
+        phpstan) echo 1 ;; mago) echo 2 ;; ecs) echo 3 ;; ecs-blink) echo 4 ;; php-cs-fixer) echo 5 ;;
+    esac
+}
+tool_version() {
+    case "$1" in
+        phpstan) "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" --version ;;
+        mago) "$TOOLS/mago" --version ;;
+        ecs|ecs-blink) "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version ;;
+        php-cs-fixer) "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version ;;
+    esac | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1
+}
 
-OUT="$RESULTS/results.md"
-{
-    echo "# Results"
-    echo
-    echo "- Host: \`$(uname -sr)\`, PHP \`$("$PHP_BIN" -r 'echo PHP_VERSION;')\`"
-    echo "- PHPStan \`$PS_VER\` (level 8), Mago \`$MG_VER\` (analyze, strict toggles)"
-    echo "- ECS \`$ES_VER\` (PER-CS): PHP engine (\`check\`) and Go binary (\`check --blink\`)"
-    echo "- PHP-CS-Fixer \`$CF_VER\` (@PER-CS)"
-    echo "- All pinned to 24 threads/processes. Runs per cell: $RUNS (median). Time in seconds, peak memory in MB."
-    echo
-    echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) | Peak mem (MB) |"
-    echo "|---------|------------:|------|---------|---------:|--------:|--------------:|"
-} > "$OUT"
+if [ "$ROWS_ONLY" = 1 ]; then
+    OUT="$RESULTS/rows-$BENCH_GROUP.md"
+    : > "$OUT"
+else
+    OUT="$RESULTS/results.md"
+    {
+        echo "# Results"
+        echo
+        echo "- Host: \`$(uname -sr)\`, PHP \`$("$PHP_BIN" -r 'echo PHP_VERSION;')\`"
+        echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
+        echo "- All pinned to 24 threads/processes. Runs per cell: $RUNS (median). Time in seconds, peak memory in MB."
+        echo
+        echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) | Peak mem (MB) |"
+        echo "|---------|------------:|------|---------|---------:|--------:|--------------:|"
+    } > "$OUT"
+fi
 
 for proj in "${PROJECTS[@]}"; do
     cd "$ROOT/projects/$proj"
     files=$(find src -name '*.php' | wc -l | tr -d ' ')
-    echo ">>> $proj: PHPStan"
-    read -r ps_cold ps_mem_c < <(bench phpstan cold)
-    read -r ps_hot ps_mem_h < <(bench phpstan hot)
-    ps_mem=$(( ps_mem_c > ps_mem_h ? ps_mem_c : ps_mem_h ))
-    echo ">>> $proj: Mago"
-    read -r mg_cold mg_mem_c < <(bench mago cold)
-    read -r mg_hot mg_mem_h < <(bench mago hot)
-    mg_mem=$(( mg_mem_c > mg_mem_h ? mg_mem_c : mg_mem_h ))
-    echo ">>> $proj: ECS (PHP engine)"
-    read -r es_cold es_mem_c < <(bench ecs cold)
-    read -r es_hot es_mem_h < <(bench ecs hot)
-    es_mem=$(( es_mem_c > es_mem_h ? es_mem_c : es_mem_h ))
-    echo ">>> $proj: ECS --blink (Go binary)"
-    read -r eb_cold eb_mem_c < <(bench ecs-blink cold)
-    read -r eb_hot eb_mem_h < <(bench ecs-blink hot)
-    eb_mem=$(( eb_mem_c > eb_mem_h ? eb_mem_c : eb_mem_h ))
-    echo ">>> $proj: PHP-CS-Fixer"
-    read -r cf_cold cf_mem_c < <(bench php-cs-fixer cold)
-    read -r cf_hot cf_mem_h < <(bench php-cs-fixer hot)
-    cf_mem=$(( cf_mem_c > cf_mem_h ? cf_mem_c : cf_mem_h ))
-    {
-        echo "| $proj | $files | PHPStan | $PS_VER | $ps_cold | $ps_hot | $ps_mem |"
-        echo "| $proj | $files | Mago | $MG_VER | $mg_cold | $mg_hot | $mg_mem |"
-        echo "| $proj | $files | ECS | $ES_VER | $es_cold | $es_hot | $es_mem |"
-        echo "| $proj | $files | ECS --blink | $ES_VER | $eb_cold | $eb_hot | $eb_mem |"
-        echo "| $proj | $files | PHP-CS-Fixer | $CF_VER | $cf_cold | $cf_hot | $cf_mem |"
-    } >> "$OUT"
+    prank=$([ "$proj" = laravel ] && echo 1 || echo 2)
+    for tool in "${GROUP_TOOLS[@]}"; do
+        echo ">>> $proj: $(tool_display "$tool")"
+        read -r cold mem_c < <(bench "$tool" cold)
+        read -r hot mem_h < <(bench "$tool" hot)
+        mem=$(( mem_c > mem_h ? mem_c : mem_h ))
+        row="| $proj | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot | $mem |"
+        if [ "$ROWS_ONLY" = 1 ]; then
+            # prefix a <project-rank><tool-rank> sort key so the merge step can reorder fragments
+            printf '%s%s\t%s\n' "$prank" "$(tool_rank "$tool")" "$row" >> "$OUT"
+        else
+            echo "$row" >> "$OUT"
+        fi
+    done
 done
 
 cd "$ROOT"
