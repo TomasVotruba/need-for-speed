@@ -130,10 +130,10 @@ else
         echo
         echo "- Host: \`$(uname -sr)\`, PHP \`$("$PHP_BIN" -r 'echo PHP_VERSION;')\`"
         echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
-        echo "- All pinned to 24 threads/processes. Runs per cell: $RUNS (median). Time in seconds, peak memory in MB."
+        echo "- All pinned to 24 threads/processes. Runs per cell: $RUNS (median). Time in seconds."
         echo
-        echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) | Peak mem (MB) |"
-        echo "|---------|------------:|------|---------|---------:|--------:|--------------:|"
+        echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) |"
+        echo "|---------|------------:|------|---------|---------:|--------:|"
     } > "$OUT"
 fi
 
@@ -156,8 +156,7 @@ for proj in "${PROJECTS[@]}"; do
         echo ">>> $proj: $(tool_display "$tool")"
         read -r cold mem_c < <(bench "$tool" cold)
         read -r hot mem_h < <(bench "$tool" hot)
-        mem=$(( mem_c > mem_h ? mem_c : mem_h ))
-        row="| $label | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot | $mem |"
+        row="| $label | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot |"
         if [ "$ROWS_ONLY" = 1 ]; then
             # prefix a <project-rank><tool-rank> sort key so the merge step can reorder fragments
             printf '%s%s\t%s\n' "$prank" "$(tool_rank "$tool")" "$row" >> "$OUT"
