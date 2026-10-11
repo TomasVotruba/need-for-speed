@@ -67,13 +67,14 @@ clone_project() {
             git clone --depth 1 "$repo" "$ROOT/projects/$name"
         fi
     fi
-    # Installing under php8.4 ignores platform reqs; a dedicated older php (laravel74)
-    # installs without it, so Composer resolves dependency versions that php can parse.
-    local platform="--ignore-platform-reqs"
-    [ "$cphp" != "$PHP_BIN" ] && platform=""
+    # php8.4 projects install everything and ignore platform reqs. An older php (laravel74)
+    # installs --no-dev so Composer resolves runtime deps that php can actually parse - the
+    # 8.x dev tools pull php8-only versions. Only src/ is analyzed, so dev deps are not needed.
+    local flags="--ignore-platform-reqs"
+    [ "$cphp" != "$PHP_BIN" ] && flags="--no-dev"
     echo ">>> composer install: $name"
     (cd "$ROOT/projects/$name" && COMPOSER_MEMORY_LIMIT=-1 \
-        "$cphp" "$COMPOSER_BIN" install --no-interaction --no-progress --no-scripts $platform)
+        "$cphp" "$COMPOSER_BIN" install --no-interaction --no-progress --no-scripts $flags)
     cp "$ROOT/configs/$name/phpstan.neon" "$ROOT/projects/$name/phpstan.neon"
     cp "$ROOT/configs/$name/mago.toml" "$ROOT/projects/$name/mago.toml"
     cp "$ROOT/configs/$name/ecs.php" "$ROOT/projects/$name/ecs.php"
