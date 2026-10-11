@@ -11,29 +11,41 @@ PHP_CS_FIXER_VERSION="${PHP_CS_FIXER_VERSION:-3.95.27}"
 # Frameworks and PHPStan need PHP 8.x; prefer php8.4 when the default php is older.
 PHP_BIN="${PHP_BIN:-$(command -v php8.4 || command -v php)}"
 COMPOSER_BIN="$(command -v composer)"
+# SETUP_TOOLS limits which tools to install (space-separated: mago phpstan ecs php-cs-fixer).
+# The parallel CI jobs set it so each installs only what it benchmarks; frameworks always clone.
+SETUP_TOOLS="${SETUP_TOOLS:-mago phpstan ecs php-cs-fixer}"
+want() { case " $SETUP_TOOLS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$TOOLS" "$ROOT/projects"
 
-echo ">>> Installing Mago $MAGO_VERSION"
-curl -sSL https://carthage.software/mago.sh | bash -s -- --install-dir="$TOOLS" --version="$MAGO_VERSION"
+if want mago; then
+    echo ">>> Installing Mago $MAGO_VERSION"
+    curl -sSL https://carthage.software/mago.sh | bash -s -- --install-dir="$TOOLS" --version="$MAGO_VERSION"
+fi
 
-echo ">>> Installing PHPStan $PHPSTAN_VERSION (with Composer, so the Turbo extension next to the phar is used)"
-mkdir -p "$TOOLS/phpstan"
-(cd "$TOOLS/phpstan" && COMPOSER_MEMORY_LIMIT=-1 \
-    "$PHP_BIN" "$COMPOSER_BIN" require "phpstan/phpstan:$PHPSTAN_VERSION" \
-    --no-interaction --no-progress)
+if want phpstan; then
+    echo ">>> Installing PHPStan $PHPSTAN_VERSION (with Composer, so the Turbo extension next to the phar is used)"
+    mkdir -p "$TOOLS/phpstan"
+    (cd "$TOOLS/phpstan" && COMPOSER_MEMORY_LIMIT=-1 \
+        "$PHP_BIN" "$COMPOSER_BIN" require "phpstan/phpstan:$PHPSTAN_VERSION" \
+        --no-interaction --no-progress)
+fi
 
-echo ">>> Installing ECS $ECS_VERSION (ships the ecs-go binary for --blink)"
-mkdir -p "$TOOLS/ecs"
-(cd "$TOOLS/ecs" && COMPOSER_MEMORY_LIMIT=-1 \
-    "$PHP_BIN" "$COMPOSER_BIN" require "symplify/easy-coding-standard:$ECS_VERSION" \
-    --no-interaction --no-progress)
+if want ecs; then
+    echo ">>> Installing ECS $ECS_VERSION (ships the ecs-go binary for --blink)"
+    mkdir -p "$TOOLS/ecs"
+    (cd "$TOOLS/ecs" && COMPOSER_MEMORY_LIMIT=-1 \
+        "$PHP_BIN" "$COMPOSER_BIN" require "symplify/easy-coding-standard:$ECS_VERSION" \
+        --no-interaction --no-progress)
+fi
 
-echo ">>> Installing PHP-CS-Fixer $PHP_CS_FIXER_VERSION"
-mkdir -p "$TOOLS/php-cs-fixer"
-(cd "$TOOLS/php-cs-fixer" && COMPOSER_MEMORY_LIMIT=-1 \
-    "$PHP_BIN" "$COMPOSER_BIN" require "friendsofphp/php-cs-fixer:$PHP_CS_FIXER_VERSION" \
-    --no-interaction --no-progress)
+if want php-cs-fixer; then
+    echo ">>> Installing PHP-CS-Fixer $PHP_CS_FIXER_VERSION"
+    mkdir -p "$TOOLS/php-cs-fixer"
+    (cd "$TOOLS/php-cs-fixer" && COMPOSER_MEMORY_LIMIT=-1 \
+        "$PHP_BIN" "$COMPOSER_BIN" require "friendsofphp/php-cs-fixer:$PHP_CS_FIXER_VERSION" \
+        --no-interaction --no-progress)
+fi
 
 clone_project() {
     local name="$1" repo="$2"

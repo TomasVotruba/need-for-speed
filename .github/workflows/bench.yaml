@@ -7,7 +7,17 @@ on:
 jobs:
   bench:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: phpstan
+            setup_tools: phpstan
+          - group: mago
+            setup_tools: mago
+          - group: ecs
+            setup_tools: ecs php-cs-fixer
     steps:
       - uses: actions/checkout@v4
 
@@ -24,18 +34,52 @@ jobs:
       - name: Install tools and projects
         env:
           GH_TOKEN: ${{ github.token }}
+          SETUP_TOOLS: ${{ matrix.setup_tools }}
         run: ./setup.sh
 
-      - name: Run benchmark
+      - name: Run benchmark (${{ matrix.group }})
+        env:
+          BENCH_GROUP: ${{ matrix.group }}
+          ROWS_ONLY: '1'
         run: ./bench.sh
 
+      - name: Upload row fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: rows-${{ matrix.group }}
+          path: results/rows-${{ matrix.group }}.md
+
+  merge:
+    needs: bench
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download row fragments
+        uses: actions/download-artifact@v4
+        with:
+          path: merged
+          pattern: rows-*
+          merge-multiple: true
+
+      - name: Assemble results.md
+        run: |
+          mkdir -p results
+          {
+            echo "# Results"
+            echo
+            echo "- Env: GitHub Actions \`ubuntu-latest\`, PHP 8.4"
+            echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
+            echo "- All pinned to 24 threads/processes. Median of 3 runs. Time in seconds, peak memory in MB."
+            echo
+            echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) | Peak mem (MB) |"
+            echo "|---------|------------:|------|---------|---------:|--------:|--------------:|"
+            cat merged/rows-*.md | sort -n | cut -f2-
+          } > results/results.md
+
       - name: Upload results
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: results
           path: results/results.md
 
       - name: Print results
-        if: always()
         run: cat results/results.md >> "$GITHUB_STEP_SUMMARY"
