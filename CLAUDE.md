@@ -1,9 +1,53 @@
 # CLAUDE.md
 
-## Result tables
+This repo holds two benchmark suites:
+
+- **Static analyzers and code modifiers** - PHPStan / Mago / ECS / PHP-CS-Fixer on framework `src/` (`setup.sh` + `bench.sh`, `configs/`, `results/`).
+- **PHP parsing** - raw parser speed on a full Laravel corpus (per-parser subproject dirs + `benchmark.yaml`).
+
+## Result tables (static analyzers and code modifiers)
 
 In the result tables (README.md and `results/results.md`), bold any `Cold (s)` or `Hot (s)`
 value under 2 seconds, e.g. `**1.07**`. Values of 2s or more stay plain.
 
 Cacheless tools (Mago, ECS --blink) keep no cache, so cold == hot. Show one value in the
 `Cold (s)` cell and leave the `Hot (s)` cell blank.
+
+## PHP parser benchmarks
+
+Each subproject parses the same corpus and reports timing.
+
+### Layout
+
+- `nikic-PHP-Parser/` - PHP, `nikic/php-parser` v5. Composer project. Also pulls `mpdf/mpdf` (legacy; not used by the bench).
+- `ext-ast/` - PHP, `php-ast` C extension. Composer requires `ext-ast` (platform), no real packages.
+- `z7zmey-php-parser-dev/` - Go, `z7zmey/php-parser` v0.7.2.
+- `rector-php-parser-in-go/` - Go, `rectorphp/php-parser-in-go` v0.1.0 (z7zmey lineage re-extracted; new API `parser.Parse([]byte, conf.Config{Version})` + `dumper.NewDumper(w).Dump(node)`).
+
+The tagged `z7zmey-php-parser/` variant was removed - only the dev one is kept.
+
+### How a benchmark works
+
+- Corpus = a freshly cloned `laravel/framework` **with all Composer dependencies installed** (`git clone --depth 1 ... laravel` then `composer install ... --working-dir=laravel`), parsed as the whole `../laravel` tree (`src/` + `vendor/`). It is gitignored - every CI job clones and installs it.
+- After install, the corpus is pruned of intentionally-broken PHP fixtures that hard-crash some parsers: `rm -rf laravel/tests` and `find laravel/vendor -depth -type d -name tests -exec rm -rf {} +`. Keep these prune steps in sync across CI and the README.
+- Each subproject's `Makefile` has a single `run` target wrapping the parse in `time`, pointed at `../laravel`.
+
+### Gotchas
+
+- `ext-ast` cannot run without the `ast` PHP extension installed (CI uses `shivammathur/setup-php` with `extensions: ast`). Not installable on a stock box without the extension.
+- `ext-ast/bench.php` passes AST version `110` to `ast\parse_file()` - versions below 70 are invalid in php-ast 1.x.
+- `nikic/bench.php` uses `(new ParserFactory)->createForNewestSupportedVersion()` - the v4 `create(PREFER_PHP7)` API was removed in v5.
+- `z7zmey/php-parser` v0.7.2 changed the API - `php7.NewParser([]byte, version)` and `GetPath()` was removed (the bench prints the file path itself). Older `bytes.Reader`-based code will not compile.
+- Built Go binaries and `vendor/` are gitignored.
+
+### CI
+
+`.github/workflows/benchmark.yaml`: push to `main`, pull requests, cron every 12h.
+
+- One job per parser. Each runs `make run` **10 times**, averages the wall-clock ms, measures peak RSS (via `/usr/bin/time -v` on a single direct binary run - wrapping the binary, not `make`), and uploads it as a `duration-*` artifact (`Label|ms|mem_mb` format).
+- One `dump-*` job per parser parses the single fixture `sample-class.php` (repo root) via `make dump` and prints the node tree to `$GITHUB_STEP_SUMMARY`. These need no corpus (no clone/prune) - just build the tool. Each `make dump` target calls the parser's dump entrypoint: nikic/ext-ast use `dump.php`; z7zmey takes a `-dump <file>` flag; mago uses a `dump <file>` mode arg (prints `{program:#?}`).
+- The `summary` job downloads all artifacts, collects them with `find` (not a glob - files may be nested per artifact), sorts ascending, and renders a fixed-width table (`column -t`) into `$GITHUB_STEP_SUMMARY` (also `tee`'d to the job log).
+
+### Editing the timing table
+
+Keep the artifact line format `Label|ms|mem_mb`. The summary sorts numerically on the second `|`-field (ms) and renders `mem_mb` as the "Peak mem" column, so the label must not contain `|`.

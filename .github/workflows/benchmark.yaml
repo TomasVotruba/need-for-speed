@@ -1,0 +1,452 @@
+name: Benchmark
+
+on:
+    pull_request: null
+    push:
+        branches:
+            - main
+    schedule:
+        # every 12 hours
+        - cron: '0 */12 * * *'
+
+jobs:
+    nikic-php-parser:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                include:
+                    - version: 5.9.0
+                      label: v5.9
+                    - version: 5.8.0
+                      label: v5.8
+                    - version: 5.7.0
+                      label: v5.7
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: 8.4
+                  coverage: none
+                  ini-values: zend.assertions=-1
+
+            # pin the exact php-parser version for this matrix leg
+            - run: composer require nikic/php-parser:=${{ matrix.version }} --no-progress --no-interaction --working-dir=nikic-PHP-Parser
+
+            - name: Clone + install Laravel corpus
+              run: |
+                  git clone --depth 1 https://github.com/laravel/framework laravel
+                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
+                  # drop intentionally-broken PHP fixtures that crash some parsers
+                  rm -rf laravel/tests
+                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
+
+            - name: Run benchmark (timed + memory)
+              working-directory: nikic-PHP-Parser
+              run: |
+                  bench() {
+                    total=0
+                    for i in $(seq 1 5); do
+                      start=$(date +%s%3N)
+                      "$@" > /dev/null
+                      end=$(date +%s%3N)
+                      total=$((total + end - start))
+                    done
+                    echo $((total / 5))
+                  }
+                  # peak resident set size (MB) of a single direct binary run;
+                  # wraps the parser directly, not `make`, so /usr/bin/time sees
+                  # the parser process (make would only report its own tiny RSS).
+                  mem() {
+                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
+                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
+                  }
+                  echo "nikic/php-parser (${{ matrix.label }})|$(bench taskset -c 0 make run)|$(mem taskset -c 0 php -d memory_limit=512M bench.php ../laravel)" > ../single-nikic-${{ matrix.version }}.txt
+                  echo "nikic/php-parser (${{ matrix.label }})|$(bench make run)|$(mem php -d memory_limit=512M bench.php ../laravel)" > ../multi-nikic-${{ matrix.version }}.txt
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: duration-nikic-${{ matrix.version }}
+                  path: |
+                      single-nikic-${{ matrix.version }}.txt
+                      multi-nikic-${{ matrix.version }}.txt
+
+    ext-ast:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: 8.4
+                  extensions: ast
+                  coverage: none
+
+            - name: Clone + install Laravel corpus
+              run: |
+                  git clone --depth 1 https://github.com/laravel/framework laravel
+                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
+                  # drop intentionally-broken PHP fixtures that crash some parsers
+                  rm -rf laravel/tests
+                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
+
+            - name: Run benchmark (timed + memory)
+              working-directory: ext-ast
+              run: |
+                  bench() {
+                    total=0
+                    for i in $(seq 1 5); do
+                      start=$(date +%s%3N)
+                      "$@" > /dev/null
+                      end=$(date +%s%3N)
+                      total=$((total + end - start))
+                    done
+                    echo $((total / 5))
+                  }
+                  # peak resident set size (MB) of a single direct binary run
+                  mem() {
+                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
+                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
+                  }
+                  echo "ext-ast|$(bench taskset -c 0 make run)|$(mem taskset -c 0 php -d memory_limit=512M bench.php ../laravel)" > ../single-ext-ast.txt
+                  echo "ext-ast|$(bench make run)|$(mem php -d memory_limit=512M bench.php ../laravel)" > ../multi-ext-ast.txt
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: duration-ext-ast
+                  path: |
+                      single-ext-ast.txt
+                      multi-ext-ast.txt
+
+    z7zmey-php-parser-dev:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: stable
+
+            - name: Clone + install Laravel corpus
+              run: |
+                  git clone --depth 1 https://github.com/laravel/framework laravel
+                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
+                  # drop intentionally-broken PHP fixtures that crash some parsers
+                  rm -rf laravel/tests
+                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
+
+            - run: go build -o z7zmey-php-parser-dev .
+              working-directory: z7zmey-php-parser-dev
+
+            - name: Run benchmark (timed + memory)
+              working-directory: z7zmey-php-parser-dev
+              run: |
+                  bench() {
+                    total=0
+                    for i in $(seq 1 5); do
+                      start=$(date +%s%3N)
+                      "$@" > /dev/null
+                      end=$(date +%s%3N)
+                      total=$((total + end - start))
+                    done
+                    echo $((total / 5))
+                  }
+                  # peak resident set size (MB) of a single direct binary run
+                  mem() {
+                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
+                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
+                  }
+                  echo "z7zmey/php-parser|$(bench taskset -c 0 make run)|$(mem taskset -c 0 ./z7zmey-php-parser-dev ../laravel)" > ../single-z7zmey.txt
+                  echo "z7zmey/php-parser|$(bench make run)|$(mem ./z7zmey-php-parser-dev ../laravel)" > ../multi-z7zmey.txt
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: duration-z7zmey-php-parser-dev
+                  path: |
+                      single-z7zmey.txt
+                      multi-z7zmey.txt
+
+    rector-php-parser-in-go:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: stable
+
+            - name: Clone + install Laravel corpus
+              run: |
+                  git clone --depth 1 https://github.com/laravel/framework laravel
+                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
+                  # drop intentionally-broken PHP fixtures that crash some parsers
+                  rm -rf laravel/tests
+                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
+
+            - run: go build -o rector-php-parser-in-go .
+              working-directory: rector-php-parser-in-go
+
+            - name: Run benchmark (timed + memory)
+              working-directory: rector-php-parser-in-go
+              run: |
+                  bench() {
+                    total=0
+                    for i in $(seq 1 5); do
+                      start=$(date +%s%3N)
+                      "$@" > /dev/null
+                      end=$(date +%s%3N)
+                      total=$((total + end - start))
+                    done
+                    echo $((total / 5))
+                  }
+                  # peak resident set size (MB) of a single direct binary run
+                  mem() {
+                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
+                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
+                  }
+                  echo "rectorphp/php-parser-in-go|$(bench taskset -c 0 make run)|$(mem taskset -c 0 ./rector-php-parser-in-go ../laravel)" > ../single-rector.txt
+                  echo "rectorphp/php-parser-in-go|$(bench make run)|$(mem ./rector-php-parser-in-go ../laravel)" > ../multi-rector.txt
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: duration-rector-php-parser-in-go
+                  path: |
+                      single-rector.txt
+                      multi-rector.txt
+
+    mago-syntax:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - name: Clone + install Laravel corpus
+              run: |
+                  git clone --depth 1 https://github.com/laravel/framework laravel
+                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
+                  # drop intentionally-broken PHP fixtures that crash some parsers
+                  rm -rf laravel/tests
+                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
+
+            - name: Build
+              working-directory: mago-syntax
+              run: cargo build --release
+
+            - name: Run benchmark (timed)
+              working-directory: mago-syntax
+              run: |
+                  ./target/release/mago-syntax-bench parallel ../laravel > /dev/null
+                  bench() {
+                    total=0
+                    for i in $(seq 1 5); do
+                      start=$(date +%s%3N)
+                      "$@" > /dev/null
+                      end=$(date +%s%3N)
+                      total=$((total + end - start))
+                    done
+                    echo $((total / 5))
+                  }
+                  # peak resident set size (MB) of a single direct binary run
+                  mem() {
+                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
+                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
+                  }
+                  # single-core table: single-threaded mode pinned to one core
+                  echo "mago-syntax (single-threaded)|$(bench taskset -c 0 make run-single)|$(mem taskset -c 0 ./target/release/mago-syntax-bench single ../laravel)" > ../single-mago.txt
+                  # all-core table: parallel mode (rayon across all cores)
+                  echo "mago-syntax (parallel)|$(bench make run)|$(mem ./target/release/mago-syntax-bench parallel ../laravel)" > ../multi-mago.txt
+
+            - uses: actions/upload-artifact@v4
+              with:
+                  name: duration-mago-syntax
+                  path: |
+                      single-mago.txt
+                      multi-mago.txt
+
+    dump-nikic:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: 8.4
+                  coverage: none
+
+            - run: composer install --no-progress --working-dir=nikic-PHP-Parser
+
+            - name: Dump sample class AST
+              working-directory: nikic-PHP-Parser
+              run: |
+                  {
+                    echo "## nikic/php-parser (v5) — sample class AST"
+                    echo ""
+                    echo '```'
+                    make dump
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    dump-ext-ast:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: shivammathur/setup-php@v2
+              with:
+                  php-version: 8.4
+                  extensions: ast
+                  coverage: none
+
+            - name: Dump sample class AST
+              working-directory: ext-ast
+              run: |
+                  {
+                    echo "## ext-ast — sample class AST"
+                    echo ""
+                    echo '```'
+                    make dump
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    dump-z7zmey:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: stable
+
+            - run: go build -o z7zmey-php-parser-dev .
+              working-directory: z7zmey-php-parser-dev
+
+            - name: Dump sample class AST
+              working-directory: z7zmey-php-parser-dev
+              run: |
+                  {
+                    echo "## z7zmey/php-parser — sample class AST"
+                    echo ""
+                    echo '```'
+                    make dump
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    dump-rector:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: actions/setup-go@v5
+              with:
+                  go-version: stable
+
+            - run: go build -o rector-php-parser-in-go .
+              working-directory: rector-php-parser-in-go
+
+            - name: Dump sample class AST
+              working-directory: rector-php-parser-in-go
+              run: |
+                  {
+                    echo "## rectorphp/php-parser-in-go — sample class AST"
+                    echo ""
+                    echo '```'
+                    make dump
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    dump-mago:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+
+            - uses: dtolnay/rust-toolchain@stable
+
+            - name: Build
+              working-directory: mago-syntax
+              run: cargo build --release
+
+            - name: Dump sample class AST
+              working-directory: mago-syntax
+              run: |
+                  {
+                    echo "## mago-syntax — sample class AST"
+                    echo ""
+                    echo '```'
+                    make dump
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    summary-single:
+        runs-on: ubuntu-latest
+        needs:
+            - nikic-php-parser
+            - ext-ast
+            - z7zmey-php-parser-dev
+            - rector-php-parser-in-go
+            - mago-syntax
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  pattern: duration-*
+                  merge-multiple: true
+                  path: durations
+
+            - name: Render single-core table
+              run: |
+                  data=$(find durations -name 'single-*.txt' -exec cat {} +)
+                  max=$(printf '%s\n' "$data" | sort -t'|' -k2 -nr | head -1 | cut -d'|' -f2)
+                  {
+                    echo "## Benchmark results — single core"
+                    echo ""
+                    echo "Average wall-clock time over 5 runs, each parser pinned to **one CPU core** (\`taskset -c 0\`), parsing the full Laravel framework corpus (\`src/\` + all Composer \`vendor/\` dependencies). \"Peak mem\" is the peak resident set size of a single run. Slowest first; \"vs slowest\" is how many times faster than the slowest parser."
+                    echo ""
+                    echo '```'
+                    {
+                      printf 'Rank|Parser|Avg (5 runs)|Peak mem|vs slowest\n'
+                      rank=0
+                      printf '%s\n' "$data" | sort -t'|' -k2 -nr | while IFS='|' read -r name ms mem; do
+                        rank=$((rank + 1))
+                        ratio=$(awk -v m="$max" -v x="$ms" 'BEGIN{printf "%.1fx", m/x}')
+                        printf '%s|%s|%s ms|%s MB|%s\n' "$rank" "$name" "$ms" "$mem" "$ratio"
+                      done
+                    } | column -t -s'|' -o ' | ' -R 1,3,4,5
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
+
+    summary-all-cores:
+        runs-on: ubuntu-latest
+        needs:
+            - nikic-php-parser
+            - ext-ast
+            - z7zmey-php-parser-dev
+            - rector-php-parser-in-go
+            - mago-syntax
+        steps:
+            - uses: actions/download-artifact@v4
+              with:
+                  pattern: duration-*
+                  merge-multiple: true
+                  path: durations
+
+            - name: Render all-core table
+              run: |
+                  data=$(find durations -name 'multi-*.txt' -exec cat {} +)
+                  max=$(printf '%s\n' "$data" | sort -t'|' -k2 -nr | head -1 | cut -d'|' -f2)
+                  {
+                    echo "## Benchmark results — all cores"
+                    echo ""
+                    echo "Average wall-clock time over 5 runs with **all runner cores available** (no pinning), parsing the full Laravel framework corpus (\`src/\` + all Composer \`vendor/\` dependencies). \"Peak mem\" is the peak resident set size of a single run. Only multi-threaded parsers (mago-syntax parallel) gain here; single-threaded parsers match their single-core number. Slowest first; \"vs slowest\" is how many times faster than the slowest parser."
+                    echo ""
+                    echo '```'
+                    {
+                      printf 'Rank|Parser|Avg (5 runs)|Peak mem|vs slowest\n'
+                      rank=0
+                      printf '%s\n' "$data" | sort -t'|' -k2 -nr | while IFS='|' read -r name ms mem; do
+                        rank=$((rank + 1))
+                        ratio=$(awk -v m="$max" -v x="$ms" 'BEGIN{printf "%.1fx", m/x}')
+                        printf '%s|%s|%s ms|%s MB|%s\n' "$rank" "$name" "$ms" "$mem" "$ratio"
+                      done
+                    } | column -t -s'|' -o ' | ' -R 1,3,4,5
+                    echo '```'
+                  } | tee -a "$GITHUB_STEP_SUMMARY"
