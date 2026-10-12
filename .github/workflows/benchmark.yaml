@@ -214,76 +214,6 @@ jobs:
                       single-rector.txt
                       multi-rector.txt
 
-    halleck45-go-php-parser:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-go@v5
-              with:
-                  go-version: stable
-
-            - name: Install musl toolchain
-              run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-            - name: Clone + install Laravel corpus
-              run: |
-                  git clone --depth 1 https://github.com/laravel/framework laravel
-                  composer install --no-interaction --no-progress --ignore-platform-reqs --working-dir=laravel
-                  # drop intentionally-broken PHP fixtures that crash some parsers
-                  rm -rf laravel/tests
-                  find laravel/vendor -depth -type d -name tests -exec rm -rf {} +
-
-            # The module ships no prebuilt native libs; fetch the musl build-time
-            # artifacts (libphp.a, libastbridge.a, PHP embed headers) into the
-            # local module copy referenced by the relative `replace` in go.mod.
-            - name: Prepare go-php-parser native libs
-              working-directory: halleck45-go-php-parser
-              run: |
-                  rm -rf .halleck-src
-                  git clone --depth 1 https://github.com/Halleck45/go-php-parser .halleck-src
-                  curl -sL -o musl.tgz https://github.com/Halleck45/go-php-parser/releases/download/v0.1.0/prebuilt-linux_amd64_musl.tar.gz
-                  tar xzf musl.tgz -C .halleck-src
-                  rm musl.tgz
-
-            - name: Build
-              working-directory: halleck45-go-php-parser
-              run: |
-                  INC="$(pwd)/.halleck-src/prebuilt/linux_amd64_musl/include/php"
-                  GOFLAGS=-mod=mod CC=musl-gcc CGO_ENABLED=1 \
-                    CGO_CFLAGS="-I$INC -I$INC/main -I$INC/Zend -I$INC/TSRM -I$INC/sapi/embed -I$INC/ext -I$INC/ext/date/lib" \
-                    go build -tags musl -o halleck45-go-php-parser .
-
-            - name: Run benchmark (timed)
-              working-directory: halleck45-go-php-parser
-              run: |
-                  # warm-up: fetch runtime libs into v1/prebuilt (cached for later runs)
-                  ./halleck45-go-php-parser ../laravel > /dev/null
-                  bench() {
-                    total=0
-                    for i in $(seq 1 5); do
-                      start=$(date +%s%3N)
-                      "$@" > /dev/null
-                      end=$(date +%s%3N)
-                      total=$((total + end - start))
-                    done
-                    echo $((total / 5))
-                  }
-                  # peak resident set size (MB) of a single direct binary run
-                  mem() {
-                    /usr/bin/time -v "$@" 2>mem.log > /dev/null
-                    awk '/Maximum resident set size/{printf "%d", $NF/1024}' mem.log
-                  }
-                  echo "halleck45/go-php-parser|$(bench taskset -c 0 make run)|$(mem taskset -c 0 ./halleck45-go-php-parser ../laravel)" > ../single-halleck45.txt
-                  echo "halleck45/go-php-parser|$(bench make run)|$(mem ./halleck45-go-php-parser ../laravel)" > ../multi-halleck45.txt
-
-            - uses: actions/upload-artifact@v4
-              with:
-                  name: duration-halleck45-go-php-parser
-                  path: |
-                      single-halleck45.txt
-                      multi-halleck45.txt
-
     mago-syntax:
         runs-on: ubuntu-latest
         steps:
@@ -425,46 +355,6 @@ jobs:
                     echo '```'
                   } | tee -a "$GITHUB_STEP_SUMMARY"
 
-    dump-halleck45:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v4
-
-            - uses: actions/setup-go@v5
-              with:
-                  go-version: stable
-
-            - name: Install musl toolchain
-              run: sudo apt-get update && sudo apt-get install -y musl-tools
-
-            - name: Prepare go-php-parser native libs
-              working-directory: halleck45-go-php-parser
-              run: |
-                  rm -rf .halleck-src
-                  git clone --depth 1 https://github.com/Halleck45/go-php-parser .halleck-src
-                  curl -sL -o musl.tgz https://github.com/Halleck45/go-php-parser/releases/download/v0.1.0/prebuilt-linux_amd64_musl.tar.gz
-                  tar xzf musl.tgz -C .halleck-src
-                  rm musl.tgz
-
-            - name: Build
-              working-directory: halleck45-go-php-parser
-              run: |
-                  INC="$(pwd)/.halleck-src/prebuilt/linux_amd64_musl/include/php"
-                  GOFLAGS=-mod=mod CC=musl-gcc CGO_ENABLED=1 \
-                    CGO_CFLAGS="-I$INC -I$INC/main -I$INC/Zend -I$INC/TSRM -I$INC/sapi/embed -I$INC/ext -I$INC/ext/date/lib" \
-                    go build -tags musl -o halleck45-go-php-parser .
-
-            - name: Dump sample class AST
-              working-directory: halleck45-go-php-parser
-              run: |
-                  {
-                    echo "## halleck45/go-php-parser — sample class AST"
-                    echo ""
-                    echo '```'
-                    make dump
-                    echo '```'
-                  } | tee -a "$GITHUB_STEP_SUMMARY"
-
     dump-mago:
         runs-on: ubuntu-latest
         steps:
@@ -494,7 +384,6 @@ jobs:
             - ext-ast
             - z7zmey-php-parser-dev
             - rector-php-parser-in-go
-            - halleck45-go-php-parser
             - mago-syntax
         steps:
             - uses: actions/download-artifact@v4
@@ -532,7 +421,6 @@ jobs:
             - ext-ast
             - z7zmey-php-parser-dev
             - rector-php-parser-in-go
-            - halleck45-go-php-parser
             - mago-syntax
         steps:
             - uses: actions/download-artifact@v4
