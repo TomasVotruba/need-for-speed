@@ -1,0 +1,14 @@
+{
+    "name": "z7zmey/ext-ast-bench",
+    "type": "project",
+    "require": {
+        "ext-ast": "^1.1"
+    },
+    "license": "mit",
+    "authors": [
+        {
+            "name": "z7zmey",
+            "email": "z7zmey@gmail.com"
+        }
+    ]
+}
