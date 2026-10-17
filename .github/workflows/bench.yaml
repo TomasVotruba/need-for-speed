@@ -16,6 +16,8 @@ jobs:
             setup_tools: phpstan
           - group: mago
             setup_tools: mago
+          - group: mir
+            setup_tools: mir
           - group: ecs
             setup_tools: ecs
           - group: php-cs-fixer
@@ -75,7 +77,7 @@ jobs:
             echo "# Results"
             echo
             echo "- Env: GitHub Actions \`ubuntu-latest\`, PHP 8.4"
-            echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
+            echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; mir default rules; ECS and PHP-CS-Fixer at PER-CS."
             echo "- All pinned to 24 threads/processes. Median of 3 runs. Time in seconds."
             echo
             echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) |"
