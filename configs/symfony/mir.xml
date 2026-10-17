@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!-- mir's default rule set (no errorLevel); vendor/ is resolved lazily via Composer autoload. -->
+<mir>
+    <projectFiles>
+        <directory name="src" />
+    </projectFiles>
+    <phpVersion>8.4</phpVersion>
+</mir>

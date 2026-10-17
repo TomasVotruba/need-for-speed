@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Speed comparison: PHPStan vs Mago, analyzing Laravel and Symfony framework source.
+# Speed comparison: PHPStan vs Mago vs mir, analyzing Laravel and Symfony framework source.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
@@ -7,7 +7,7 @@ TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
 PROJECTS=(laravel symfony laravel74)
-# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer | all.
+# BENCH_GROUP picks which tools to run: phpstan | mago | mir | ecs (ecs + ecs-blink) | php-cs-fixer | all.
 # ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
 # for the parallel CI jobs that a merge step stitches back together.
 BENCH_GROUP="${BENCH_GROUP:-all}"
@@ -15,9 +15,10 @@ ROWS_ONLY="${ROWS_ONLY:-0}"
 case "$BENCH_GROUP" in
     phpstan)      GROUP_TOOLS=(phpstan) ;;
     mago)         GROUP_TOOLS=(mago) ;;
+    mir)          GROUP_TOOLS=(mir) ;;
     ecs)          GROUP_TOOLS=(ecs ecs-blink) ;;
     php-cs-fixer) GROUP_TOOLS=(php-cs-fixer) ;;
-    all)          GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer) ;;
+    all)          GROUP_TOOLS=(phpstan mago mir ecs ecs-blink php-cs-fixer) ;;
     *) echo "unknown BENCH_GROUP: $BENCH_GROUP" >&2; exit 1 ;;
 esac
 # PHPStan phar needs PHP 8.x; prefer php8.4 when the default php is older.
@@ -46,6 +47,7 @@ run_once() {
 
 phpstan_cmd() { "$PHP_BIN" "$TOOLS/phpstan/vendor/bin/phpstan" analyse -c phpstan.neon --no-progress --error-format=raw; }
 mago_cmd() { "$TOOLS/mago" analyze; }
+mir_cmd() { "$TOOLS/mir" src -c mir.xml --no-progress -j 24 --cache-dir .mir-cache; }
 ecs_cmd() { "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" check --no-progress-bar "$@"; }
 csfixer_cmd() { "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" check "$@"; }
 
@@ -58,10 +60,14 @@ bench() {
         # (Mago and ECS `--blink` keep none)
         if [ "$mode" = cold ] && [ "$tool" = phpstan ]; then rm -rf .phpstan-cache; fi
         if [ "$mode" = cold ] && [ "$tool" = php-cs-fixer ]; then rm -f .php-cs-fixer.cache; fi
+        if [ "$mode" = cold ] && [ "$tool" = mir ]; then rm -rf .mir-cache; fi
         if [ "$tool" = phpstan ]; then
             t=$(run_once "$TMP/rss" "$PS_PHP_BIN" "$PS_VENDOR" analyse -c phpstan.neon --no-progress --error-format=raw)
         elif [ "$tool" = mago ]; then
             t=$(run_once "$TMP/rss" "$TOOLS/mago" analyze)
+        elif [ "$tool" = mir ]; then
+            # `src` passed explicitly so mir analyzes exactly src/ (not composer.json's extra autoload paths)
+            t=$(run_once "$TMP/rss" "$TOOLS/mir" src -c mir.xml --no-progress -j 24 --cache-dir .mir-cache)
         elif [ "$tool" = ecs ]; then
             # PHP engine: clear the result cache on cold, reuse it on hot
             if [ "$mode" = cold ]; then
@@ -89,6 +95,7 @@ tool_display() {
     case "$1" in
         phpstan) echo "PHPStan" ;;
         mago) echo "Mago" ;;
+        mir) echo "mir" ;;
         ecs) echo "ECS" ;;
         ecs-blink) echo "ECS --blink" ;;
         php-cs-fixer) echo "PHP-CS-Fixer" ;;
@@ -96,7 +103,7 @@ tool_display() {
 }
 tool_rank() {
     case "$1" in
-        phpstan) echo 1 ;; mago) echo 2 ;; ecs) echo 3 ;; ecs-blink) echo 4 ;; php-cs-fixer) echo 5 ;;
+        phpstan) echo 1 ;; mago) echo 2 ;; mir) echo 3 ;; ecs) echo 4 ;; ecs-blink) echo 5 ;; php-cs-fixer) echo 6 ;;
     esac
 }
 # project_label prints "Laravel 12.33" / "Symfony 7.4" from the framework's own VERSION constant
@@ -115,6 +122,7 @@ tool_version() {
     case "$1" in
         phpstan) "$PS_PHP_BIN" "$PS_VENDOR" --version ;;
         mago) "$TOOLS/mago" --version ;;
+        mir) "$TOOLS/mir" --version ;;
         ecs|ecs-blink) "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version ;;
         php-cs-fixer) "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version ;;
     esac | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1
@@ -129,7 +137,7 @@ else
         echo "# Results"
         echo
         echo "- Host: \`$(uname -sr)\`, PHP \`$("$PHP_BIN" -r 'echo PHP_VERSION;')\`"
-        echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
+        echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; mir default rules; ECS and PHP-CS-Fixer at PER-CS."
         echo "- All pinned to 24 threads/processes. Runs per cell: $RUNS (median). Time in seconds."
         echo
         echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) |"
