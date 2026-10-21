@@ -13,10 +13,10 @@ OUT="${1:-$ROOT/versions.json}"
 # tool key -> "setup.sh var|github repo|min-PHP note"
 # the min-PHP note is static per tool and carried into the README Versions table.
 TOOLS=(
-  "phpstan|PHPSTAN_VERSION|phpstan/phpstan|7.4 (\`php: ^7.4\\|^8.0\`)"
+  "phpstan|PHPSTAN_VERSION|phpstan/phpstan|7.4 (\`php: ^7.4\\\\|^8.0\`)"
   "mago|MAGO_VERSION|carthage-software/mago|none - standalone Rust binary"
   "ecs|ECS_VERSION|ecsphp/ecs|7.2 (\`php: >=7.2\`; \`--blink\` Go binary is runtime-independent)"
-  "php-cs-fixer|PHP_CS_FIXER_VERSION|PHP-CS-Fixer/PHP-CS-Fixer|7.4 (\`php: ^7.4\\|^8.0\`)"
+  "php-cs-fixer|PHP_CS_FIXER_VERSION|PHP-CS-Fixer/PHP-CS-Fixer|7.4 (\`php: ^7.4\\\\|^8.0\`)"
 )
 
 # latest <repo> -> "tag_name<TAB>published_date" of the newest non-prerelease release

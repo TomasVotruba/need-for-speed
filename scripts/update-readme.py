@@ -28,6 +28,17 @@ TOOL_META = {
     "php-cs-fixer": ("PHP-CS-Fixer", "https://github.com/PHP-CS-Fixer/PHP-CS-Fixer"),
 }
 
+# static-table Tool label -> versions.json key, so the Version column reflects the
+# pinned release rather than whatever the tool's --version banner happens to print
+# first (ECS, for one, reports a bundled component version there).
+TOOL_KEY = {
+    "PHPStan": "phpstan",
+    "Mago": "mago",
+    "ECS": "ecs",
+    "ECS --blink": "ecs",
+    "PHP-CS-Fixer": "php-cs-fixer",
+}
+
 
 def replace_region(text, marker_id, body):
     """Swap the content between the AUTO:<marker_id> start/end comments for body."""
@@ -135,6 +146,11 @@ def main():
 
     versions = json.load(open(args.versions, encoding="utf-8"))
     static_rows = parse_static(args.static)
+    # pin the Version column to the authoritative release from versions.json
+    for r in static_rows:
+        key = TOOL_KEY.get(r["tool"])
+        if key in versions:
+            r["version"] = versions[key]["version"]
     # the PHP 7.4 table is the Laravel 8.x project; everything else is the 8.4 table.
     php74 = [r for r in static_rows if re.match(r"Laravel 8\.", r["project"])]
     php84 = [r for r in static_rows if r not in php74]
