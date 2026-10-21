@@ -100,8 +100,8 @@ Needs `php8.4` (plus `php7.4` for the Laravel 8.x rows), `composer`, `git`, `cur
 | Tool | Version | Released | Min PHP to run |
 |------|---------|----------|----------------|
 | [PHPStan](https://phpstan.org/) | 2.3.1 | 2026-10-08 | 7.4 (`php: ^7.4\|^8.0`) |
-| [Mago](https://github.com/carthage-software/mago) | 1.56.3 | 2026-10-12 | none - standalone Rust binary |
-| [ECS](https://github.com/ecsphp/ecs) | 13.3.4 | 2026-10-09 | 7.2 (`php: >=7.2`; `--blink` Go binary is runtime-independent) |
+| [Mago](https://github.com/carthage-software/mago) | 1.58.2 | 2026-10-19 | none - standalone Rust binary |
+| [ECS](https://github.com/ecsphp/ecs) | 13.3.8 | 2026-10-20 | 7.2 (`php: >=7.2`; `--blink` Go binary is runtime-independent) |
 | [PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer) | 3.95.27 | 2026-09-22 | 7.4 (`php: ^7.4\|^8.0`) |
 <!-- AUTO:versions end -->
 

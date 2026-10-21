@@ -22,7 +22,7 @@ TOOLS=(
 # latest <repo> -> "tag_name<TAB>published_date" of the newest non-prerelease release
 latest() {
   gh api "repos/$1/releases?per_page=20" \
-    --jq '[.[] | select(.prerelease == false and .draft == false)][0] | "\(.tag_name)\t\(.publishedAt)"'
+    --jq '[.[] | select(.prerelease == false and .draft == false)][0] | "\(.tag_name)\t\(.published_at)"'
 }
 
 echo "{" > "$OUT"
