@@ -1,0 +1,123 @@
+name: Auto Update README
+
+# Every 3 days: bump tool pins to their latest releases, re-run both benchmark
+# suites, regenerate the AUTO-marked tables in README, append a record to
+# results/history.json, and open (or refresh) a single rolling PR.
+#
+# The branch is reset from main each run, so the PR always reads "main -> latest
+# snapshot". history.json grows across cycles only when these PRs get merged: a
+# merge lands the new record on main, and the next run appends to it.
+on:
+  schedule:
+    # day-of-month 1,4,7,...,31 - cron's closest fit to "every 3 days"
+    - cron: '0 4 */3 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-update
+  cancel-in-progress: false
+
+env:
+  BRANCH: automated/benchmark-refresh
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Bump tool pins to latest releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/bump-pins.sh versions.json
+
+      - name: Push refresh branch with the bumped pins
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$BRANCH"
+          git add setup.sh
+          git commit -m "Bump tool pins to latest releases" || echo "pins already current"
+          git push -f origin "$BRANCH"
+
+      - name: Upload versions.json for the assemble job
+        uses: actions/upload-artifact@v4
+        with:
+          name: versions
+          path: versions.json
+
+  bench-static:
+    needs: bump
+    uses: ./.github/workflows/bench.yaml
+    with:
+      ref: automated/benchmark-refresh
+
+  bench-parsers:
+    needs: bump
+    uses: ./.github/workflows/benchmark.yaml
+
+  assemble:
+    needs: [bump, bench-static, bench-parsers]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: automated/benchmark-refresh
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Download static results
+        uses: actions/download-artifact@v4
+        with:
+          name: results
+          path: static
+
+      - name: Download versions.json
+        uses: actions/download-artifact@v4
+        with:
+          name: versions
+          path: .
+
+      - name: Download parser durations
+        uses: actions/download-artifact@v4
+        with:
+          pattern: duration-*
+          merge-multiple: true
+          path: durations
+
+      - name: Regenerate README tables and append history
+        run: |
+          mkdir -p results
+          python3 scripts/update-readme.py \
+            --readme README.md \
+            --static static/results.md \
+            --durations durations \
+            --versions versions.json \
+            --history results/history.json \
+            --commit "${{ github.sha }}"
+          rm -f versions.json
+
+      - name: Commit and open or refresh the PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md results/history.json
+          git commit -m "Regenerate benchmark tables and append history" || {
+            echo "no table changes"; exit 0;
+          }
+          git push origin "HEAD:$BRANCH"
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            echo "PR already open - force-pushed branch refreshed it in place"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "Refresh tool pins and benchmark data" \
+              --body "Automated 3-day refresh: tool pins bumped to their latest releases, static-analyzer and parser benchmark tables regenerated, and \`results/history.json\` appended. Numbers come from shared GitHub-hosted runners and carry run-to-run noise. Merge to grow the history record on main."
+          fi
