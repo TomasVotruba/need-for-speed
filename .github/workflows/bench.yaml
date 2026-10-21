@@ -3,6 +3,12 @@ name: Benchmark
 on:
   workflow_dispatch:
   pull_request:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out and benchmark (defaults to the triggering ref)
+        type: string
+        required: false
 
 jobs:
   bench:
@@ -22,6 +28,8 @@ jobs:
             setup_tools: php-cs-fixer
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - name: Set up PHP 7.4 (for the Laravel 8.x project)
         uses: shivammathur/setup-php@v2

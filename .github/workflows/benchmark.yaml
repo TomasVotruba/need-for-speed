@@ -8,6 +8,8 @@ on:
     schedule:
         # every 12 hours
         - cron: '0 */12 * * *'
+    # lets auto-update.yaml reuse these parser jobs and collect their duration-* artifacts
+    workflow_call:
 
 jobs:
     nikic-php-parser:
