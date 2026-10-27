@@ -20,6 +20,10 @@ COMPOSER_BIN="$(command -v composer)"
 # The parallel CI jobs set it so each installs only what it benchmarks; frameworks always clone.
 SETUP_TOOLS="${SETUP_TOOLS:-mago phpstan ecs php-cs-fixer rector}"
 want() { case " $SETUP_TOOLS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+# SETUP_PROJECTS limits which frameworks to clone+install (laravel symfony laravel74).
+# The Rector job sets it to "laravel" so its CI leg stays small (no Symfony clone/install).
+SETUP_PROJECTS="${SETUP_PROJECTS:-laravel symfony laravel74}"
+want_project() { case " $SETUP_PROJECTS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$TOOLS" "$ROOT/projects"
 
@@ -97,11 +101,14 @@ clone_project() {
     cp "$ROOT/configs/$name/mago.toml" "$ROOT/projects/$name/mago.toml"
     cp "$ROOT/configs/$name/ecs.php" "$ROOT/projects/$name/ecs.php"
     cp "$ROOT/configs/$name/.php-cs-fixer.dist.php" "$ROOT/projects/$name/.php-cs-fixer.dist.php"
-    cp "$ROOT/configs/$name/rector.php" "$ROOT/projects/$name/rector.php"
+    # Rector only benches Laravel, so only configs/laravel/ ships a rector.php - copy it when present.
+    if [ -f "$ROOT/configs/$name/rector.php" ]; then
+        cp "$ROOT/configs/$name/rector.php" "$ROOT/projects/$name/rector.php"
+    fi
 }
 
-clone_project laravel https://github.com/laravel/framework.git
-clone_project symfony https://github.com/symfony/symfony.git
-clone_project laravel74 https://github.com/laravel/framework.git 8.x "${PHP74_BIN:-$PHP_BIN}"
+if want_project laravel;   then clone_project laravel https://github.com/laravel/framework.git; fi
+if want_project symfony;   then clone_project symfony https://github.com/symfony/symfony.git; fi
+if want_project laravel74; then clone_project laravel74 https://github.com/laravel/framework.git 8.x "${PHP74_BIN:-$PHP_BIN}"; fi
 
 echo ">>> Done. Now run: ./bench.sh"

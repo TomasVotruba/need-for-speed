@@ -26,8 +26,6 @@ jobs:
             setup_tools: ecs
           - group: php-cs-fixer
             setup_tools: php-cs-fixer
-          - group: rector
-            setup_tools: rector
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,8 +65,49 @@ jobs:
           name: rows-${{ matrix.group }}
           path: results/rows-${{ matrix.group }}.md
 
+  # Rector is heavier than the other tools, so it runs Laravel only (no Symfony) as a single
+  # run on its own job capped at 10 minutes - the 2.7 vs 2.8 A/B on one framework.
+  bench-rector:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set up PHP 8.4
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer
+          coverage: none
+
+      - name: Install GNU time
+        run: sudo apt-get update && sudo apt-get install -y time
+
+      - name: Install Rector and the Laravel project
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SETUP_TOOLS: rector
+          SETUP_PROJECTS: laravel
+        run: ./setup.sh
+
+      - name: Run benchmark (rector, Laravel only)
+        env:
+          BENCH_GROUP: rector
+          BENCH_PROJECTS: laravel
+          RUNS: '1'
+          ROWS_ONLY: '1'
+        run: ./bench.sh
+
+      - name: Upload row fragment
+        uses: actions/upload-artifact@v4
+        with:
+          name: rows-rector
+          path: results/rows-rector.md
+
   merge:
-    needs: bench
+    needs: [bench, bench-rector]
     runs-on: ubuntu-latest
     steps:
       - name: Download row fragments
@@ -86,7 +125,7 @@ jobs:
             echo
             echo "- Env: GitHub Actions \`ubuntu-latest\`, PHP 8.4"
             echo "- PHPStan level 8; Mago \`analyze\` with strict toggles; ECS and PHP-CS-Fixer at PER-CS."
-            echo "- All pinned to 24 threads/processes. Median of 3 runs. Time in seconds."
+            echo "- All pinned to 24 threads/processes. Median of 3 runs (Rector: Laravel only, single run). Time in seconds."
             echo
             echo "| Project | Files (src) | Tool | Version | Cold (s) | Hot (s) |"
             echo "|---------|------------:|------|---------|---------:|--------:|"

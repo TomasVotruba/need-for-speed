@@ -6,7 +6,8 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
-PROJECTS=(laravel symfony laravel74)
+# BENCH_PROJECTS limits which frameworks to bench; the Rector job sets it to "laravel".
+read -ra PROJECTS <<< "${BENCH_PROJECTS:-laravel symfony laravel74}"
 # BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer |
 # rector (both pinned versions) | all.
 # ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
@@ -167,6 +168,10 @@ for proj in "${PROJECTS[@]}"; do
         PS_PHP_BIN="$PHP_BIN"; PS_VENDOR="$TOOLS/phpstan/vendor/bin/phpstan"
     fi
     for tool in "${GROUP_TOOLS[@]}"; do
+        # Rector only ships a config for Laravel; skip it elsewhere instead of erroring
+        if [[ "$tool" == rector* ]] && [ ! -f rector.php ]; then
+            echo ">>> $proj: skip $(tool_display "$tool") (no rector.php)"; continue
+        fi
         echo ">>> $proj: $(tool_display "$tool")"
         read -r cold mem_c < <(bench "$tool" cold)
         read -r hot mem_h < <(bench "$tool" hot)

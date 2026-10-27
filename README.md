@@ -18,7 +18,8 @@ in both engines - the PHP engine (`check`) and the bundled Go binary (`check --b
 plus **[PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer)** (the fixer ECS wraps),
 and automated refactoring with **[Rector](https://github.com/rectorphp/rector)** run at two pinned
 versions - **2.7.0** and **2.8.1** - to compare the two releases on an identical workload.
-All run against Laravel and Symfony `src/`.
+PHPStan, Mago, ECS and PHP-CS-Fixer run against Laravel and Symfony `src/`; Rector is heavier, so it
+runs against Laravel `src/` only, as a single run on its own CI job capped at 10 minutes.
 
 ### Results
 
