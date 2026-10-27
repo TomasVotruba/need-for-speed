@@ -6,8 +6,10 @@ ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
 RESULTS="$ROOT/results"
 RUNS="${RUNS:-3}"
-PROJECTS=(laravel symfony laravel74)
-# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer | all.
+# BENCH_PROJECTS limits which frameworks to bench; the Rector job sets it to "laravel".
+read -ra PROJECTS <<< "${BENCH_PROJECTS:-laravel symfony laravel74}"
+# BENCH_GROUP picks which tools to run: phpstan | mago | ecs (ecs + ecs-blink) | php-cs-fixer |
+# rector (both pinned versions) | all.
 # ROWS_ONLY=1 writes just table rows (prefixed with a sort key) to results/rows-<group>.md,
 # for the parallel CI jobs that a merge step stitches back together.
 BENCH_GROUP="${BENCH_GROUP:-all}"
@@ -17,7 +19,8 @@ case "$BENCH_GROUP" in
     mago)         GROUP_TOOLS=(mago) ;;
     ecs)          GROUP_TOOLS=(ecs ecs-blink) ;;
     php-cs-fixer) GROUP_TOOLS=(php-cs-fixer) ;;
-    all)          GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer) ;;
+    rector)       GROUP_TOOLS=(rector27 rector28) ;;
+    all)          GROUP_TOOLS=(phpstan mago ecs ecs-blink php-cs-fixer rector27 rector28) ;;
     *) echo "unknown BENCH_GROUP: $BENCH_GROUP" >&2; exit 1 ;;
 esac
 # PHPStan phar needs PHP 8.x; prefer php8.4 when the default php is older.
@@ -72,6 +75,14 @@ bench() {
         elif [ "$tool" = ecs-blink ]; then
             # the ecs-go Go binary, keeps no cache (cold == hot)
             t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" check --blink --no-progress-bar --clear-cache)
+        elif [ "$tool" = rector27 ] || [ "$tool" = rector28 ]; then
+            # rector --dry-run makes no changes; cold clears its cache, hot reuses it
+            [ "$tool" = rector27 ] && rdir=rector27 || rdir=rector28
+            if [ "$mode" = cold ]; then
+                t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/$rdir/vendor/bin/rector" process --dry-run --no-progress-bar --clear-cache)
+            else
+                t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/$rdir/vendor/bin/rector" process --dry-run --no-progress-bar)
+            fi
         else
             # php-cs-fixer: cold wiped the cache above, hot reuses .php-cs-fixer.cache
             t=$(run_once "$TMP/rss" "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" check)
@@ -92,11 +103,13 @@ tool_display() {
         ecs) echo "ECS" ;;
         ecs-blink) echo "ECS --blink" ;;
         php-cs-fixer) echo "PHP-CS-Fixer" ;;
+        rector27|rector28) echo "Rector" ;;
     esac
 }
 tool_rank() {
     case "$1" in
         phpstan) echo 1 ;; mago) echo 2 ;; ecs) echo 3 ;; ecs-blink) echo 4 ;; php-cs-fixer) echo 5 ;;
+        rector27) echo 6 ;; rector28) echo 7 ;;
     esac
 }
 # project_label prints "Laravel 12.33" / "Symfony 7.4" from the framework's own VERSION constant
@@ -117,6 +130,8 @@ tool_version() {
         mago) "$TOOLS/mago" --version ;;
         ecs|ecs-blink) "$PHP_BIN" "$TOOLS/ecs/vendor/bin/ecs" --version ;;
         php-cs-fixer) "$PHP_BIN" "$TOOLS/php-cs-fixer/vendor/bin/php-cs-fixer" --version ;;
+        rector27) "$PHP_BIN" "$TOOLS/rector27/vendor/bin/rector" --version ;;
+        rector28) "$PHP_BIN" "$TOOLS/rector28/vendor/bin/rector" --version ;;
     esac | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1
 }
 
@@ -153,6 +168,10 @@ for proj in "${PROJECTS[@]}"; do
         PS_PHP_BIN="$PHP_BIN"; PS_VENDOR="$TOOLS/phpstan/vendor/bin/phpstan"
     fi
     for tool in "${GROUP_TOOLS[@]}"; do
+        # Rector only ships a config for Laravel; skip it elsewhere instead of erroring
+        if [[ "$tool" == rector* ]] && [ ! -f rector.php ]; then
+            echo ">>> $proj: skip $(tool_display "$tool") (no rector.php)"; continue
+        fi
         echo ">>> $proj: $(tool_display "$tool")"
         read -r cold mem_c < <(bench "$tool" cold)
         read -r hot mem_h < <(bench "$tool" hot)

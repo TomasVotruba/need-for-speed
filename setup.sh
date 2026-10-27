@@ -8,15 +8,22 @@ PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.1}"
 MAGO_VERSION="${MAGO_VERSION:-1.58.2}"
 ECS_VERSION="${ECS_VERSION:-13.3.8}"
 PHP_CS_FIXER_VERSION="${PHP_CS_FIXER_VERSION:-3.95.27}"
+# Rector is pinned at two fixed versions on purpose - a 2.7 vs 2.8 A/B, not auto-bumped.
+RECTOR_27_VERSION="${RECTOR_27_VERSION:-2.7.0}"
+RECTOR_28_VERSION="${RECTOR_28_VERSION:-2.8.1}"
 # Frameworks and PHPStan need PHP 8.x; prefer php8.4 when the default php is older.
 PHP_BIN="${PHP_BIN:-$(command -v php8.4 || command -v php)}"
 # php7.4 is used only for the Laravel 8.x / PHP 7.4 PHPStan rows; absent elsewhere.
 PHP74_BIN="${PHP74_BIN:-$(command -v php7.4 || true)}"
 COMPOSER_BIN="$(command -v composer)"
-# SETUP_TOOLS limits which tools to install (space-separated: mago phpstan ecs php-cs-fixer).
+# SETUP_TOOLS limits which tools to install (space-separated: mago phpstan ecs php-cs-fixer rector).
 # The parallel CI jobs set it so each installs only what it benchmarks; frameworks always clone.
-SETUP_TOOLS="${SETUP_TOOLS:-mago phpstan ecs php-cs-fixer}"
+SETUP_TOOLS="${SETUP_TOOLS:-mago phpstan ecs php-cs-fixer rector}"
 want() { case " $SETUP_TOOLS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+# SETUP_PROJECTS limits which frameworks to clone+install (laravel symfony laravel74).
+# The Rector job sets it to "laravel" so its CI leg stays small (no Symfony clone/install).
+SETUP_PROJECTS="${SETUP_PROJECTS:-laravel symfony laravel74}"
+want_project() { case " $SETUP_PROJECTS " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
 mkdir -p "$TOOLS" "$ROOT/projects"
 
@@ -57,6 +64,17 @@ if want php-cs-fixer; then
         --no-interaction --no-progress)
 fi
 
+if want rector; then
+    echo ">>> Installing Rector $RECTOR_27_VERSION and $RECTOR_28_VERSION (runs under php8.4)"
+    for pair in "rector27:$RECTOR_27_VERSION" "rector28:$RECTOR_28_VERSION"; do
+        dir="${pair%%:*}"; ver="${pair#*:}"
+        mkdir -p "$TOOLS/$dir"
+        (cd "$TOOLS/$dir" && COMPOSER_MEMORY_LIMIT=-1 \
+            "$PHP_BIN" "$COMPOSER_BIN" require "rector/rector:$ver" \
+            --no-interaction --no-progress)
+    done
+fi
+
 clone_project() {
     local name="$1" repo="$2" branch="${3:-}" cphp="${4:-$PHP_BIN}"
     if [ ! -d "$ROOT/projects/$name/.git" ]; then
@@ -83,10 +101,14 @@ clone_project() {
     cp "$ROOT/configs/$name/mago.toml" "$ROOT/projects/$name/mago.toml"
     cp "$ROOT/configs/$name/ecs.php" "$ROOT/projects/$name/ecs.php"
     cp "$ROOT/configs/$name/.php-cs-fixer.dist.php" "$ROOT/projects/$name/.php-cs-fixer.dist.php"
+    # Rector only benches Laravel, so only configs/laravel/ ships a rector.php - copy it when present.
+    if [ -f "$ROOT/configs/$name/rector.php" ]; then
+        cp "$ROOT/configs/$name/rector.php" "$ROOT/projects/$name/rector.php"
+    fi
 }
 
-clone_project laravel https://github.com/laravel/framework.git
-clone_project symfony https://github.com/symfony/symfony.git
-clone_project laravel74 https://github.com/laravel/framework.git 8.x "${PHP74_BIN:-$PHP_BIN}"
+if want_project laravel;   then clone_project laravel https://github.com/laravel/framework.git; fi
+if want_project symfony;   then clone_project symfony https://github.com/symfony/symfony.git; fi
+if want_project laravel74; then clone_project laravel74 https://github.com/laravel/framework.git 8.x "${PHP74_BIN:-$PHP_BIN}"; fi
 
 echo ">>> Done. Now run: ./bench.sh"
