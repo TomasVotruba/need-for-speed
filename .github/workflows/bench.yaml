@@ -100,11 +100,25 @@ jobs:
           ROWS_ONLY: '1'
         run: ./bench.sh
 
-      - name: Upload row fragment
+      - name: Print Rector time + memory to the summary
+        run: |
+          {
+            echo "### Rector 2.7.0 vs 2.8.1 (Laravel src/, single run)"
+            echo '```'
+            echo "timing rows:"
+            cut -f2- results/rows-rector.md
+            echo "memory (label | tool | version | cold_mb | hot_mb):"
+            cat results/mem-rector.md
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload row + memory fragments
         uses: actions/upload-artifact@v4
         with:
           name: rows-rector
-          path: results/rows-rector.md
+          path: |
+            results/rows-rector.md
+            results/mem-rector.md
 
   merge:
     needs: [bench, bench-rector]
