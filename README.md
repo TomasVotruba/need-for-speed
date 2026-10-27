@@ -87,6 +87,21 @@ a standalone Rust binary, so the PHP runtime does not affect it. The Laravel 8.x
 `php7.4` with `require-dev` dropped, so Composer resolves 7.4-compatible dependency versions (its 8.x dev
 tools need php8); ECS and PHP-CS-Fixer run the checker under `php8.4` against the 7.4 code.
 
+#### Rector 2.7.0 vs 2.8.1 (Laravel)
+
+Rector is run at two pinned versions on an identical workload - `process --dry-run` over Laravel `src/`
+with its dead-code, code-quality, type-declaration and all PHP-version sets. It is heavier than the other
+tools, so it runs Laravel only, as a single run on its own CI job capped at 10 minutes.
+
+| Version | Cold (s) | Hot (s) | Peak mem (MB) |
+|---------|---------:|--------:|--------------:|
+| 2.7.0 | 128.19 | 123.99 | 1406 |
+| 2.8.1 | 46.48 | 45.38 | 1050 |
+
+2.8.1 runs the same workload ~2.75x faster than 2.7.0 (128.2s -> 46.5s) while holding a lower peak
+memory (1406 MB -> 1050 MB). Single run per version, so treat the numbers as indicative rather than
+median-stable; absolute values are host-dependent (GitHub Actions `ubuntu-latest`, 4 vCPU).
+
 ### Run
 
 Needs `php8.4` (plus `php7.4` for the Laravel 8.x rows), `composer`, `git`, `curl`, GNU `time`.
