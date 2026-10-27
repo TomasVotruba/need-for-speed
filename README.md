@@ -2,7 +2,7 @@
 
 Speed comparisons of the PHP toolchain on real framework source, in two groups:
 
-- **[Static analyzers and code modifiers](#static-analyzers-and-code-modifiers)** - PHPStan, Mago, ECS and PHP-CS-Fixer checking/fixing Laravel and Symfony `src/`.
+- **[Static analyzers and code modifiers](#static-analyzers-and-code-modifiers)** - PHPStan, Mago, ECS, PHP-CS-Fixer and Rector checking/fixing/upgrading Laravel and Symfony `src/`.
 - **[PHP parsing](#php-parsing)** - raw parser speed (nikic, php-ast, Go parsers, Mago) over a full Laravel corpus.
 
 Inspired by [php-toolchain-benchmarks](https://github.com/carthage-software/php-toolchain-benchmarks), kept minimal.
@@ -15,13 +15,16 @@ Speed comparison of PHP code-quality tools on real framework source:
 static analysis with **[PHPStan](https://phpstan.org/)** (PHP) vs **[Mago](https://github.com/carthage-software/mago)** (Rust),
 and coding-standard checks with **[ECS](https://github.com/ecsphp/ecs)**
 in both engines - the PHP engine (`check`) and the bundled Go binary (`check --blink`) -
-plus **[PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer)** (the fixer ECS wraps).
+plus **[PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer)** (the fixer ECS wraps),
+and automated refactoring with **[Rector](https://github.com/rectorphp/rector)** run at two pinned
+versions - **2.7.0** and **2.8.1** - to compare the two releases on an identical workload.
 All run against Laravel and Symfony `src/`.
 
 ### Results
 
 PHP 8.4, all tools pinned to 24 threads/processes, median of 3 runs.
-PHPStan at level 8; Mago `analyze` with strict toggles (Mago has no numeric levels); ECS and PHP-CS-Fixer at PER-CS.
+PHPStan at level 8; Mago `analyze` with strict toggles (Mago has no numeric levels); ECS and PHP-CS-Fixer at PER-CS;
+Rector (`process --dry-run`) with its dead-code, code-quality, type-declaration and all PHP-version sets.
 **Cold** = fresh run; **Hot** = immediate re-run (PHPStan, ECS and PHP-CS-Fixer reuse a result cache; Mago and ECS `--blink` keep none).
 Measured in CI on GitHub Actions `ubuntu-latest` (4 vCPU) by the `Benchmark` workflow, so the run is
 reproducible in one environment - the 24-thread pinning oversubscribes the 4 cores, so absolute numbers
@@ -104,6 +107,9 @@ Needs `php8.4` (plus `php7.4` for the Laravel 8.x rows), `composer`, `git`, `cur
 | [ECS](https://github.com/ecsphp/ecs) | 13.3.8 | 2026-10-20 | 7.2 (`php: >=7.2`; `--blink` Go binary is runtime-independent) |
 | [PHP-CS-Fixer](https://github.com/PHP-CS-Fixer/PHP-CS-Fixer) | 3.95.27 | 2026-09-22 | 7.4 (`php: ^7.4\|^8.0`) |
 <!-- AUTO:versions end -->
+
+Rector is pinned at **2.7.0** and **2.8.1** (not auto-bumped) so the two releases can be compared on an
+identical workload - its rows share the `Rector` label and differ only by the version column.
 
 Not a scientific benchmark: the tools run different checks and numbers are host-dependent.
 

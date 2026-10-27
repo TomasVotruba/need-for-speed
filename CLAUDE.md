@@ -2,7 +2,7 @@
 
 This repo holds two benchmark suites:
 
-- **Static analyzers and code modifiers** - PHPStan / Mago / ECS / PHP-CS-Fixer on framework `src/` (`setup.sh` + `bench.sh`, `configs/`, `results/`).
+- **Static analyzers and code modifiers** - PHPStan / Mago / ECS / PHP-CS-Fixer / Rector (pinned at 2.7.0 and 2.8.1) on framework `src/` (`setup.sh` + `bench.sh`, `configs/`, `results/`).
 - **PHP parsing** - raw parser speed on a full Laravel corpus (per-parser subproject dirs + `benchmark.yaml`).
 
 ## Result tables (static analyzers and code modifiers)

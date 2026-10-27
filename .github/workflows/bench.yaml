@@ -26,6 +26,8 @@ jobs:
             setup_tools: ecs
           - group: php-cs-fixer
             setup_tools: php-cs-fixer
+          - group: rector
+            setup_tools: rector
     steps:
       - uses: actions/checkout@v4
         with:
