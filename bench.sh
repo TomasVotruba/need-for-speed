@@ -138,6 +138,9 @@ tool_version() {
 if [ "$ROWS_ONLY" = 1 ]; then
     OUT="$RESULTS/rows-$BENCH_GROUP.md"
     : > "$OUT"
+    # peak memory (MB) fragment alongside the timing rows: label<TAB>tool<TAB>version<TAB>cold<TAB>hot
+    MEM_OUT="$RESULTS/mem-$BENCH_GROUP.md"
+    : > "$MEM_OUT"
 else
     OUT="$RESULTS/results.md"
     {
@@ -179,10 +182,17 @@ for proj in "${PROJECTS[@]}"; do
         case "$tool" in
             mago|ecs-blink) hot="" ;;
         esac
-        row="| $label | $files | $(tool_display "$tool") | $(tool_version "$tool") | $cold | $hot |"
+        ver=$(tool_version "$tool")
+        # cacheless tools: blank the hot memory too, matching the blanked hot time
+        mem_hot="$mem_h"
+        case "$tool" in
+            mago|ecs-blink) mem_hot="" ;;
+        esac
+        row="| $label | $files | $(tool_display "$tool") | $ver | $cold | $hot |"
         if [ "$ROWS_ONLY" = 1 ]; then
             # prefix a <project-rank><tool-rank> sort key so the merge step can reorder fragments
             printf '%s%s\t%s\n' "$prank" "$(tool_rank "$tool")" "$row" >> "$OUT"
+            printf '%s\t%s\t%s\t%s\t%s\n' "$label" "$(tool_display "$tool")" "$ver" "$mem_c" "$mem_hot" >> "$MEM_OUT"
         else
             echo "$row" >> "$OUT"
         fi
