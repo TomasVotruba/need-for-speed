@@ -4,9 +4,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 TOOLS="$ROOT/tools"
-PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.1}"
-MAGO_VERSION="${MAGO_VERSION:-1.58.2}"
-ECS_VERSION="${ECS_VERSION:-13.3.8}"
+PHPSTAN_VERSION="${PHPSTAN_VERSION:-2.3.4}"
+MAGO_VERSION="${MAGO_VERSION:-1.59.0}"
+ECS_VERSION="${ECS_VERSION:-13.3.12}"
 PHP_CS_FIXER_VERSION="${PHP_CS_FIXER_VERSION:-3.95.27}"
 # Rector is pinned at two fixed versions on purpose - a 2.7 vs 2.8 A/B, not auto-bumped.
 RECTOR_27_VERSION="${RECTOR_27_VERSION:-2.7.0}"
